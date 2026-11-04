@@ -1,0 +1,82 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+file_path = os.path.join(os.path.dirname(__file__), 'laptopData.csv')
+df = pd.read_csv(file_path)
+df.replace('?', np.nan, inplace=True)
+df['Inches'] = pd.to_numeric(df['Inches'], errors='coerce')
+df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
+print("=" * 60)
+print("ORIGINAL DATASET OVERVIEW")
+print("=" * 60)
+print(df.head(10))
+print("\nShape before cleaning:", df.shape)
+print("\n" + "=" * 60)
+print("INITIAL QUALITY AUDIT")
+print("=" * 60)
+missing_counts = df.isnull().sum()
+missing_percent = (missing_counts / len(df)) * 100
+missing_summary = pd.DataFrame({'Missing Count': missing_counts, 'Percentage (%)': missing_percent})
+print(missing_summary[missing_summary['Missing Count'] > 0])
+feature_cols = [c for c in df.columns if c != 'Unnamed: 0']
+duplicate_count = df.duplicated(subset=feature_cols).sum()
+print(f"\nDuplicate rows found: {duplicate_count}")
+stats_before = df[['Inches', 'Price']].describe()
+df_cleaned = df.drop_duplicates(subset=feature_cols, keep='first').copy()
+df_cleaned.drop(columns=['Unnamed: 0'], inplace=True, errors='ignore')
+df_cleaned.dropna(how='all', inplace=True)
+df_cleaned['Inches'] = pd.to_numeric(df_cleaned['Inches'], errors='coerce')
+df_cleaned['Price'] = pd.to_numeric(df_cleaned['Price'], errors='coerce')
+df_cleaned['Weight'] = pd.to_numeric(df_cleaned['Weight'].astype(str).str.replace('kg', '', regex=False), errors='coerce')
+df_cleaned['Ram'] = pd.to_numeric(df_cleaned['Ram'].astype(str).str.replace('GB', '', regex=False), errors='coerce')
+categorical_cols = ['Company', 'TypeName', 'ScreenResolution', 'Cpu', 'Memory', 'Gpu', 'OpSys']
+for col in categorical_cols:
+    if col in df_cleaned.columns and df_cleaned[col].isnull().sum() > 0:
+        df_cleaned[col] = df_cleaned[col].fillna(df_cleaned[col].mode()[0])
+df_cleaned['Inches'] = df_cleaned['Inches'].fillna(df_cleaned['Inches'].median())
+df_cleaned['Price'] = df_cleaned['Price'].fillna(df_cleaned['Price'].median())
+df_cleaned['Weight'] = df_cleaned['Weight'].fillna(round(df_cleaned['Weight'].mean(), 2))
+df_cleaned['Ram'] = df_cleaned['Ram'].fillna(df_cleaned['Ram'].median())
+print("\n" + "=" * 60)
+print("CLEANED DATASET OVERVIEW")
+print("=" * 60)
+print(df_cleaned.head(10))
+print("\nShape after cleaning:", df_cleaned.shape)
+print("Total missing values remaining:", df_cleaned.isnull().sum().sum())
+stats_after = df_cleaned[['Inches', 'Price']].describe()
+print("\n" + "=" * 60)
+print("STATISTICAL COMPARISON (BEFORE vs AFTER)")
+print("=" * 60)
+print(pd.concat([stats_before, stats_after], axis=1, keys=['Before Cleaning', 'After Cleaning']))
+fig, axes = plt.subplots(2, 2, figsize=(11, 7))
+missing_counts_features = missing_counts[missing_counts > 0].drop('Unnamed: 0', errors='ignore')
+missing_counts_features.plot(kind='bar', ax=axes[0, 0], color='salmon', edgecolor='black')
+axes[0, 0].set_title("Missing Values per Column (Before)")
+axes[0, 0].set_ylabel("Count")
+axes[0, 0].tick_params(axis='x', rotation=45)
+sns.kdeplot(df['Inches'].dropna(), ax=axes[0, 1], label='Before (Raw)', color='red', fill=True, alpha=0.3)
+sns.kdeplot(df_cleaned['Inches'], ax=axes[0, 1], label='After (Cleaned)', color='green', fill=True, alpha=0.3)
+axes[0, 1].set_title("Screen Size Distribution (Median Imputation)")
+axes[0, 1].set_xlabel("Inches")
+axes[0, 1].legend()
+sns.kdeplot(df['Price'].dropna(), ax=axes[1, 0], label='Before (Raw)', color='red', fill=True, alpha=0.3)
+sns.kdeplot(df_cleaned['Price'], ax=axes[1, 0], label='After (Cleaned)', color='blue', fill=True, alpha=0.3)
+axes[1, 0].set_title("Price Distribution (Median Imputation)")
+axes[1, 0].set_xlabel("Price (INR)")
+axes[1, 0].legend()
+rows_removed = len(df) - len(df_cleaned)
+axes[1, 1].bar(
+    ['Original Rows', 'Duplicates/Empty Removed', 'Final Rows'],
+    [len(df), rows_removed, len(df_cleaned)],
+    color=['slategray', 'crimson', 'forestgreen'],
+    edgecolor='black'
+)
+axes[1, 1].set_title("Deduplication Summary")
+axes[1, 1].set_ylabel("Count")
+plt.tight_layout()
+output_img_path = os.path.join(os.path.dirname(__file__), 'Exp2_cleaned_plots.png')
+plt.savefig(output_img_path, dpi=300)
+print(f"\nSaved visualization to {output_img_path}")
+plt.show()
