@@ -1,0 +1,63 @@
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.datasets import load_wine
+from sklearn.decomposition import FactorAnalysis
+from sklearn.preprocessing import StandardScaler
+wine=load_wine(as_frame=True)
+df=wine.data
+feature_names=wine.feature_names
+print("="*60)
+print("1. DATASET OVERVIEW")
+print("="*60)
+print("First 5 Records:")
+print(df.head())
+print("\nDataset Shape:",df.shape)
+print("\nNumerical Features:",len(feature_names))
+print("\nMissing Values:",df.isnull().sum().sum())
+scaler=StandardScaler()
+X_scaled=scaler.fit_transform(df)
+corr_matrix=np.corrcoef(X_scaled,rowvar=False)
+eigenvalues=np.linalg.eigvalsh(corr_matrix)[::-1]
+print("\n"+"="*60)
+print("2. EIGENVALUE ANALYSIS")
+print("="*60)
+print(pd.DataFrame({"Factor":range(1,len(eigenvalues)+1),"Eigenvalue":eigenvalues}).round(3).to_string(index=False))
+kaiser_factors=np.sum(eigenvalues>1.0)
+print("\nNumber of Factors (Kaiser Criterion):",kaiser_factors)
+plt.figure(figsize=(9,5))
+factors=np.arange(1,len(eigenvalues)+1)
+plt.plot(factors,eigenvalues,"o-",color="royalblue",linewidth=2,markersize=7)
+plt.axhline(y=1.0,color="firebrick",linestyle="--",linewidth=1.5,label="Kaiser Cutoff (Eigenvalue = 1)")
+plt.title("Scree Plot of Eigenvalues")
+plt.xlabel("Factor Number")
+plt.ylabel("Eigenvalue")
+plt.xticks(factors)
+plt.grid(True,linestyle="--",alpha=0.6)
+plt.legend()
+plt.tight_layout()
+plt.show()
+n_selected_factors=int(kaiser_factors)
+fa=FactorAnalysis(n_components=n_selected_factors,random_state=42)
+X_factors=fa.fit_transform(X_scaled)
+loadings=pd.DataFrame(fa.components_.T,index=feature_names,columns=[f"Factor_{i+1}" for i in range(n_selected_factors)])
+print("\n"+"="*60)
+print("3. FACTOR LOADINGS")
+print("="*60)
+print(loadings.round(3))
+plt.figure(figsize=(8,7))
+sns.heatmap(loadings,annot=True,cmap="coolwarm",center=0,fmt=".2f",linewidths=0.5)
+plt.title("Factor Loadings Heatmap")
+plt.xlabel("Latent Factors")
+plt.ylabel("Original Features")
+plt.tight_layout()
+plt.show()
+print("\n"+"="*60)
+print("4. DIMENSIONALITY COMPARISON")
+print("="*60)
+print("Original Dimensionality:",df.shape[1],"features")
+print("Reduced Dimensionality:",X_factors.shape[1],"latent factors")
+print("Original Dataset Shape:",df.shape)
+print("Reduced Dataset Shape:",X_factors.shape)
